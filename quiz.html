@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz website</title>
+    <style>
+
+        body { font-family: Arial, sans-serif; text-align: center; margin:20px;
+            background-image: url("image2.jpg");
+            background-size:contain ;
+            background-repeat:no-repeat ;
+            background-size:cover;
+               
+        
+        }
+        .hidden { display: none; }
+        .container { max-width: 600px; margin: auto; }
+        input, button, select { margin: 5px; padding: 5px; }
+        .question-box { border: 10px solid #02010c; padding: 50px; margin-top: 10px; }
+        .answer-btn { display: block; width: 100%; margin: 50px ; padding: 20px; cursor: pointer; }
+        
+
+
+        .question-box { 
+    border: 10px solid #02010e; 
+    padding: 50px; 
+    margin-top: 10px; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    #questionInput {
+    width: 90%; /* Make it take full width of .question-box */
+    height: 100px; /* Increase height */
+    padding: 10px; /* Add padding for better spacing */
+    font-size: 16px; /* Increase text size */
+    resize: vertical; /* Allow resizing */
+}
+
+}
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <div id="home">
+            <button onclick="showSection('createQuiz')">Create Quiz</button>
+            <button onclick="showSection('joinQuiz')">Join Quiz</button>
+        </div>
+
+        <div id="createQuiz" class="hidden">
+            <h2>Create a Quiz</h2>
+            <input type="text" id="quizTitle" placeholder="Quiz Title" required>
+            <div class="question-box">
+                <textarea id="questionInput" placeholder="Enter questions" ></textarea>
+                <select id="questionType" onchange="toggleOptions()">
+                    <option value="multiple">Multiple Choice</option>
+                    <option value="text">Type Answer</option>
+                </select>
+                <div class="optionsContainer">
+                    <input type="text" id="answerInput" placeholder="Correct Answer">
+                    <input type="text" class="optionInput" placeholder="Option 2">
+                    <input type="text" class="optionInput" placeholder="Option 3">
+                    <input type="text" class="optionInput" placeholder="Option 4">
+                </div>
+            </div>
+            <button onclick="addQuestions()">➕ Add Questions</button>
+            <button onclick="startQuiz(true)">✅ Create & Start</button>
+        </div>
+
+        <div id="joinQuiz" class="hidden">
+            <h2>Join a Quiz</h2>
+            <input type="text" id="quizCodeInput" placeholder="Enter Quiz Code">
+            <button onclick="startQuiz(false)">Join</button>
+        </div>
+
+        <div id="quizSection" class="hidden">
+            <h2 id="quizTitleDisplay"></h2>
+            <p id="questionText"></p>
+            <div id="answerButtons"></div>
+            <input type="text" id="textAnswerInput" class="hidden">
+            <button id="submitTextAnswer" class="hidden" onclick="submitTextAnswer()">Submit</button>
+            <p>Time left: <span id="timer">10</span> sec</p>
+        </div>
+
+        <div id="results" class="hidden">
+            <h2>Quiz Results</h2>
+            <p id="scoreDisplay"></p>
+            <button onclick="location.reload()">🏠 Home</button>
+        </div>
+    </div>
+
+<script>
+    var questions = [];
+    var currentQuestion = 0;
+    var score = 0;
+    var timer;
+    
+    function showSection(section) {
+        var sections = ["home", "createQuiz", "joinQuiz", "quizSection", "results"];
+        for (var i = 0; i < sections.length; i++) {
+            document.getElementById(sections[i]).classList.add("hidden");
+        }
+        document.getElementById(section).classList.remove("hidden");
+    }
+
+    function addQuestions() {
+        var questionInput = document.getElementById("questionInput").value.trim();
+        var questionType = document.getElementById("questionType").value;
+        var correctAnswer = document.getElementById("answerInput").value.trim();
+        var optionInputs = document.getElementsByClassName("optionInput");
+
+        var options = [];
+        for (var i = 0; i < optionInputs.length; i++) {
+            if (optionInputs[i].value.trim() !== "") {
+                options.push(optionInputs[i].value.trim());
+            }
+        }
+
+        var questionLines = questionInput.split("\n").filter(function(q) { return q.trim() !== ""; });
+
+        for (var i = 0; i < questionLines.length; i++) {
+            var newQuestion = { 
+    question: questionLines[i], 
+    type: questionType, 
+    correct: correctAnswer, 
+    options: options.concat(correctAnswer) // Ensure correct answer is included 
+};
+
+newQuestion.options.sort(() => Math.random() - 0.5); // Shuffle options
+
+            questions.push(newQuestion);
+        }
+
+        alert(questionLines.length + " questions added!");
+    }
+
+    function generateQuizCode() {
+        return Math.random().toString(36).substr(2, 6).toUpperCase();
+    }
+
+    function startQuiz(isHost) {
+    if (isHost) {
+        var title = document.getElementById("quizTitle").value.trim();
+        if (questions.length === 0 || title === "") {
+            alert("Add a title and at least one question.");
+            return;
+        }
+
+        var quizCode = generateQuizCode();
+        try {
+            localStorage.setItem("quizCode", quizCode);
+            localStorage.setItem("quizTitle", title);
+            localStorage.setItem("questions", JSON.stringify(questions));
+        } catch (e) {
+            alert("Error saving quiz. Try again.");
+            return;
+        }
+
+        alert("Quiz Code: " + quizCode); // Host sees code but quiz doesn't start
+        showSection("home"); // Keep them on home instead of starting the quiz
+    } else {
+        var enteredCode = document.getElementById("quizCodeInput").value.trim().toUpperCase();
+        var storedCode = localStorage.getItem("quizCode");
+
+        if (enteredCode === storedCode) {
+            questions = JSON.parse(localStorage.getItem("questions"));
+            showSection("quizSection");
+            loadQuestion();
+        } else {
+            alert("Invalid quiz code. Please try again.");
+        }
+    }
+}
+
+   var timer;
+var timeLeft = 10; // Set default time for each question
+
+function loadQuestion() {
+    if (currentQuestion >= questions.length) {
+        showResults();
+        return;
+    }
+    
+    function showResults() {
+    clearInterval(timer);
+    
+    document.getElementById("quizSection").classList.add("hidden");
+    document.getElementById("results").classList.remove("hidden");
+
+    var scoreDisplay = document.getElementById("scoreDisplay");
+    if (scoreDisplay) {
+        scoreDisplay.innerText = "Your Score: " + score + " / " + questions.length;
+    }
+}
+function goHome() {
+    document.getElementById("results").classList.add("hidden");
+    document.getElementById("home").classList.remove("hidden");
+
+    // Reset quiz variables
+    currentQuestion = 0;
+    score = 0;
+}
+
+  var q = questions[currentQuestion];
+    document.getElementById("quizTitleDisplay").innerText = localStorage.getItem("quizTitle");
+    document.getElementById("questionText").innerText = q.question;
+
+    var answerButtons = document.getElementById("answerButtons");
+    var textAnswerInput = document.getElementById("textAnswerInput");
+    var submitTextAnswer = document.getElementById("submitTextAnswer");
+
+    answerButtons.innerHTML = ""; // Clear previous options
+    textAnswerInput.classList.add("hidden"); 
+    submitTextAnswer.classList.add("hidden");
+
+    if (q.type === "multiple") {
+    q.options.forEach(function (option) {
+        var button = document.createElement("button");
+        button.innerText = option;
+        button.classList.add("answer-btn");
+        button.onclick = function () { submitAnswer(option); };
+        answerButtons.appendChild(button);
+    });
+} else if (q.type === "text") {
+        textAnswerInput.classList.remove("hidden");
+        submitTextAnswer.classList.remove("hidden");
+    }
+
+    resetTimer(); // Reset and start the timer
+}
+
+function resetTimer() {
+    clearInterval(timer); // Stop any existing timer
+    timeLeft = 10;
+    document.getElementById("timer").innerText = timeLeft;
+
+    timer = setInterval(function () {
+        timeLeft--;
+        document.getElementById("timer").innerText = timeLeft;
+
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            nextQuestion();
+        }
+    }, 1000);
+}
+function submitTextAnswer() {
+    var userAnswer = document.getElementById("textAnswerInput").value.trim();
+    var correctAnswer = questions[currentQuestion].correct;
+
+    if (userAnswer.toLowerCase() === correctAnswer.toLowerCase()) {
+        score++;
+    }
+
+    nextQuestion(); // Move to the next question
+}
+function submitAnswer(selected) {
+    var correctAnswer = questions[currentQuestion].correct;
+    var buttons = document.querySelectorAll(".answer-btn");
+
+    // Disable all buttons to prevent multiple clicks
+    buttons.forEach(button => {
+        button.disabled = true;
+        if (button.innerText === correctAnswer) {
+            button.style.backgroundColor = "#4CAF50"; // Green for correct answer
+        } else if (button.innerText === selected) {
+            button.style.backgroundColor = "#F44336"; // Red for wrong answer
+        }
+    });
+
+    if (selected === correctAnswer) {
+        score++;
+    }
+
+    setTimeout(nextQuestion, 1000); // Move to next question after 1 second
+}
+
+function nextQuestion() {
+    clearInterval(timer); // Stop the timer before moving to the next question
+    currentQuestion++;
+    loadQuestion();
+}
+
+    
+    function toggleOptions() {
+    var questionType = document.getElementById("questionType").value;
+    var optionsContainer = document.querySelector(".optionsContainer");
+
+    if (questionType === "text") {
+        optionsContainer.classList.add("hidden");
+    } else {
+        optionsContainer.classList.remove("hidden");
+    }
+}
+
+
+</script>
+
+</body>
+</html>
